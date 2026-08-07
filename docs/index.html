@@ -302,7 +302,7 @@
   <label>Type</label>
   <div id="typeRow"></div>
 
-  <label>Genres (any selected must match)</label>
+  <label>Genres (must have all selected)</label>
   <div id="genreList"></div>
 
   <button id="resetView">Reset view (pan/zoom)</button>
@@ -708,8 +708,12 @@
       if (a.score != null && (a.score < scoreMin || a.score > scoreMax)) return false;
       if (activeTypes.size > 0 && !activeTypes.has(a.type)) return false;
       if (activeGenres.size > 0) {
-        var hasAny = (a.genres || []).some(function (g) { return activeGenres.has(g); });
-        if (!hasAny) return false;
+        // Filters narrow the result set, they don't widen it -- selecting
+        // Comedy + Action should show titles that are both, not everything
+        // that's either one.
+        var animeGenres = new Set(a.genres || []);
+        var hasAll = Array.from(activeGenres).every(function (g) { return animeGenres.has(g); });
+        if (!hasAll) return false;
       }
       return true;
     });

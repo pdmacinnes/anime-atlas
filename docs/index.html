@@ -108,6 +108,25 @@
     font-size: 11px;
     color: var(--text-dim);
   }
+  .range-row input[type="number"] {
+    width: 54px;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid transparent;
+    font-size: 11px;
+    padding: 1px 2px;
+    border-radius: 2px;
+    text-align: center;
+  }
+  .range-row input[type="number"]:hover,
+  .range-row input[type="number"]:focus {
+    background: var(--control-bg);
+    border-color: var(--control-border);
+    color: var(--text);
+  }
+  .range-row input[type="number"]:last-child {
+    text-align: right;
+  }
   input[type="range"] {
     width: 100%;
   }
@@ -290,12 +309,18 @@
   <input type="text" id="searchBox" placeholder="Find an anime...">
 
   <label>Year</label>
-  <div class="range-row"><span id="yearMinLabel"></span><span id="yearMaxLabel"></span></div>
+  <div class="range-row">
+    <input type="number" id="yearMinLabel" step="1">
+    <input type="number" id="yearMaxLabel" step="1">
+  </div>
   <input type="range" id="yearMin">
   <input type="range" id="yearMax">
 
   <label>Score</label>
-  <div class="range-row"><span id="scoreMinLabel"></span><span id="scoreMaxLabel"></span></div>
+  <div class="range-row">
+    <input type="number" id="scoreMinLabel" min="0" max="10" step="0.1">
+    <input type="number" id="scoreMaxLabel" min="0" max="10" step="0.1">
+  </div>
   <input type="range" id="scoreMin" min="0" max="10" step="0.1">
   <input type="range" id="scoreMax" min="0" max="10" step="0.1">
 
@@ -722,11 +747,13 @@
 
   var yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput;
 
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
   function updateRangeLabels() {
-    document.getElementById("yearMinLabel").textContent = yearMinInput.value;
-    document.getElementById("yearMaxLabel").textContent = yearMaxInput.value;
-    document.getElementById("scoreMinLabel").textContent = Number(scoreMinInput.value).toFixed(1);
-    document.getElementById("scoreMaxLabel").textContent = Number(scoreMaxInput.value).toFixed(1);
+    document.getElementById("yearMinLabel").value = yearMinInput.value;
+    document.getElementById("yearMaxLabel").value = yearMaxInput.value;
+    document.getElementById("scoreMinLabel").value = Number(scoreMinInput.value).toFixed(1);
+    document.getElementById("scoreMaxLabel").value = Number(scoreMaxInput.value).toFixed(1);
   }
 
   function resetRangeInputs() {
@@ -745,6 +772,13 @@
 
     scoreMinInput = document.getElementById("scoreMin");
     scoreMaxInput = document.getElementById("scoreMax");
+
+    var yearMinLabelInput = document.getElementById("yearMinLabel");
+    var yearMaxLabelInput = document.getElementById("yearMaxLabel");
+    var scoreMinLabelInput = document.getElementById("scoreMinLabel");
+    var scoreMaxLabelInput = document.getElementById("scoreMaxLabel");
+    yearMinLabelInput.min = yearMaxLabelInput.min = dataBounds.minYear;
+    yearMinLabelInput.max = yearMaxLabelInput.max = dataBounds.maxYear;
 
     resetRangeInputs();
 
@@ -769,6 +803,34 @@
     });
     scoreMaxInput.addEventListener("input", function () {
       if (Number(scoreMaxInput.value) < Number(scoreMinInput.value)) scoreMinInput.value = scoreMaxInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
+
+    // Typing an exact value directly into the number box next to each
+    // slider -- committed on blur/Enter ("change"), not every keystroke,
+    // so a partially-typed number doesn't get clamped mid-edit.
+    yearMinLabelInput.addEventListener("change", function () {
+      var v = clamp(Number(yearMinLabelInput.value) || dataBounds.minYear, dataBounds.minYear, dataBounds.maxYear);
+      yearMinInput.value = Math.min(v, Number(yearMaxInput.value));
+      updateRangeLabels();
+      applyFilters();
+    });
+    yearMaxLabelInput.addEventListener("change", function () {
+      var v = clamp(Number(yearMaxLabelInput.value) || dataBounds.maxYear, dataBounds.minYear, dataBounds.maxYear);
+      yearMaxInput.value = Math.max(v, Number(yearMinInput.value));
+      updateRangeLabels();
+      applyFilters();
+    });
+    scoreMinLabelInput.addEventListener("change", function () {
+      var v = clamp(Number(scoreMinLabelInput.value) || 0, 0, 10);
+      scoreMinInput.value = Math.min(v, Number(scoreMaxInput.value));
+      updateRangeLabels();
+      applyFilters();
+    });
+    scoreMaxLabelInput.addEventListener("change", function () {
+      var v = clamp(Number(scoreMaxLabelInput.value) || 10, 0, 10);
+      scoreMaxInput.value = Math.max(v, Number(scoreMinInput.value));
       updateRangeLabels();
       applyFilters();
     });

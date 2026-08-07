@@ -365,7 +365,8 @@
   var searchMatch = null;
 
   var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, maxRatingCount: 1 };
-  var sortedYears = []; // for percentile-rank year coloring -- see yearPercentile()
+  var sortedYears = []; // for percentile-rank coloring -- see percentileRank()
+  var sortedRatingCounts = [];
 
   // --- Theme ------------------------------------------------------
 
@@ -470,31 +471,34 @@
     return sequentialColor((score - 5) / 5); // 5-10 range
   }
 
-  // Year is heavily skewed (median 2012; only ~4% of anime predate 1980,
-  // but the axis stretches back to 1907), so a raw min-max scale crams 90%
-  // of real data into the top ~30% of the gradient and everything looks
-  // nearly the same color. Percentile rank (how this year compares to the
-  // rest of the actual dataset) spreads the scale by how the data is really
-  // distributed instead of by the raw range.
-  function yearPercentile(year) {
-    if (sortedYears.length === 0) return 0.5;
-    var lo = 0, hi = sortedYears.length;
+  // Year and popularity are both heavily skewed -- year: median 2012, only
+  // ~4% of anime predate 1980, but the axis stretches back to 1907;
+  // popularity (rating_count): median 1355 but max 956,713, a ~700x spread
+  // dominated by a handful of blockbusters. A raw (or even log-scaled)
+  // min-max mapping crams most real data into a narrow band of the
+  // gradient and everything looks nearly the same color. Percentile rank
+  // (how a value compares to the rest of the actual dataset) spreads the
+  // scale by how the data is really distributed instead of by the raw
+  // range or a single global log transform.
+  function percentileRank(sortedArray, value) {
+    if (sortedArray.length === 0) return 0.5;
+    var lo = 0, hi = sortedArray.length;
     while (lo < hi) {
       var mid = (lo + hi) >> 1;
-      if (sortedYears[mid] <= year) lo = mid + 1;
+      if (sortedArray[mid] <= value) lo = mid + 1;
       else hi = mid;
     }
-    return lo / sortedYears.length;
+    return lo / sortedArray.length;
   }
 
   function yearColor(year) {
     if (year == null) return cssVar("--text-dimmer") || "#888";
-    return sequentialColor(yearPercentile(year));
+    return sequentialColor(percentileRank(sortedYears, year));
   }
 
   function ratingCountColor(count) {
     if (!count) return cssVar("--text-dimmer") || "#888";
-    return sequentialColor(Math.log(count + 1) / Math.log(dataBounds.maxRatingCount + 1));
+    return sequentialColor(percentileRank(sortedRatingCounts, count));
   }
 
   var TYPE_COLORS = {
@@ -553,13 +557,18 @@
 
     var colorFn, minLabel, maxLabel;
     if (mode === "score") {
+      // Score isn't skewed the way year/popularity are -- straight 5-10 range.
       colorFn = function (t) { return scoreColor(5 + t * 5); };
       minLabel = "5.0"; maxLabel = "10.0";
     } else if (mode === "year") {
-      colorFn = function (t) { return yearColor(dataBounds.minYear + t * (dataBounds.maxYear - dataBounds.minYear)); };
+      // Percentile-based: the bar represents rank uniformly (t=0 is the
+      // oldest anime in the dataset, t=1 the newest), not a linear year
+      // span, so it's just the ramp itself -- labels show the actual
+      // endpoints, not evenly-spaced years.
+      colorFn = sequentialColor;
       minLabel = String(dataBounds.minYear); maxLabel = String(dataBounds.maxYear);
     } else {
-      colorFn = function (t) { return ratingCountColor(Math.round(Math.exp(t * Math.log(dataBounds.maxRatingCount + 1))) - 1); };
+      colorFn = sequentialColor;
       minLabel = "1"; maxLabel = dataBounds.maxRatingCount.toLocaleString();
     }
 
@@ -787,6 +796,15 @@
     yearMinLabelInput.min = yearMaxLabelInput.min = dataBounds.minYear;
     yearMinLabelInput.max = yearMaxLabelInput.max = dataBounds.maxYear;
 
+    // A single click on a number input doesn't reliably select its existing
+    // text the way it does in many apps (triple-click doesn't select-all on
+    // <input type="number"> in every browser) -- so typing a replacement
+    // value can land next to "1907" instead of over it. Force select-all on
+    // focus so clicking in always means "overwrite," not "edit in place."
+    [yearMinLabelInput, yearMaxLabelInput, scoreMinLabelInput, scoreMaxLabelInput].forEach(function (el) {
+      el.addEventListener("focus", function () { el.select(); });
+    });
+
     resetRangeInputs();
 
     // Two stacked <input type="range"> elements simulate a dual-handle
@@ -962,6 +980,7 @@
       dataBounds.maxYear = Math.max.apply(null, years);
       dataBounds.maxRatingCount = Math.max.apply(null, ratingCounts);
       sortedYears = years.slice().sort(function (a, b) { return a - b; });
+      sortedRatingCounts = ratingCounts.slice().sort(function (a, b) { return a - b; });
 
       fitView();
       setupRangeControls();

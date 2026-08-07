@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Anime Atlas</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: #0a0a0f;
+    color: #e6e6e6;
+    font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    overflow: hidden;
+    height: 100%;
+  }
+  #canvas {
+    position: fixed;
+    top: 0;
+    left: 0;
+    cursor: grab;
+  }
+  #canvas.dragging {
+    cursor: grabbing;
+  }
+  #sidebar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 260px;
+    height: 100%;
+    background: rgba(15, 15, 22, 0.92);
+    border-right: 1px solid #2a2a35;
+    padding: 14px;
+    box-sizing: border-box;
+    overflow-y: auto;
+    font-size: 13px;
+  }
+  #sidebar h1 {
+    font-size: 16px;
+    margin: 0 0 4px 0;
+  }
+  #sidebar .subtitle {
+    color: #888;
+    font-size: 11px;
+    margin-bottom: 14px;
+  }
+  #sidebar label {
+    display: block;
+    margin-top: 12px;
+    margin-bottom: 4px;
+    color: #aaa;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  #sidebar select, #sidebar input[type="text"] {
+    width: 100%;
+    box-sizing: border-box;
+    background: #1a1a24;
+    color: #e6e6e6;
+    border: 1px solid #333340;
+    padding: 5px 6px;
+    font-size: 13px;
+    border-radius: 3px;
+  }
+  .range-row {
+    display: flex;
+    justify-content: space-between;
+    font-size: 11px;
+    color: #999;
+  }
+  input[type="range"] {
+    width: 100%;
+  }
+  #genreList {
+    max-height: 160px;
+    overflow-y: auto;
+    background: #14141c;
+    border: 1px solid #2a2a35;
+    border-radius: 3px;
+    padding: 4px 6px;
+  }
+  #genreList label {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    text-transform: none;
+    font-size: 12px;
+    color: #ccc;
+    margin: 2px 0;
+  }
+  #typeRow {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  #typeRow button {
+    background: #1a1a24;
+    color: #ccc;
+    border: 1px solid #333340;
+    border-radius: 3px;
+    padding: 3px 8px;
+    font-size: 12px;
+    cursor: pointer;
+  }
+  #typeRow button.active {
+    background: #3a3a80;
+    border-color: #5a5ac0;
+    color: #fff;
+  }
+  #resetView {
+    margin-top: 14px;
+    width: 100%;
+    background: #24243a;
+    color: #ccc;
+    border: 1px solid #3a3a50;
+    border-radius: 3px;
+    padding: 6px;
+    cursor: pointer;
+  }
+  #attribution {
+    margin-top: 16px;
+    font-size: 10px;
+    color: #666;
+    line-height: 1.5;
+    border-top: 1px solid #2a2a35;
+    padding-top: 10px;
+  }
+  #attribution a {
+    color: #7a7aff;
+  }
+  #detailPanel {
+    position: fixed;
+    bottom: 16px;
+    right: 16px;
+    width: 260px;
+    background: rgba(15, 15, 22, 0.95);
+    border: 1px solid #2a2a35;
+    border-radius: 6px;
+    padding: 12px;
+    display: none;
+    font-size: 12px;
+  }
+  #detailPanel img {
+    max-width: 100%;
+    border-radius: 4px;
+    margin-bottom: 8px;
+  }
+  #detailPanel h2 {
+    font-size: 14px;
+    margin: 0 0 4px 0;
+  }
+  #detailPanel .meta {
+    color: #999;
+    margin-bottom: 6px;
+  }
+  #detailPanel a {
+    color: #7a7aff;
+  }
+  #loading, #error {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #999;
+  }
+  #error {
+    color: #ff6b6b;
+    display: none;
+  }
+  #countBadge {
+    position: fixed;
+    bottom: 12px;
+    left: 274px;
+    color: #666;
+    font-size: 11px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="canvas"></canvas>
+<div id="loading">Loading atlas...</div>
+<div id="error">Couldn't load atlas.json.</div>
+<div id="countBadge"></div>
+
+<div id="sidebar">
+  <h1>Anime Atlas</h1>
+  <div class="subtitle">Anime placed near each other when the same MAL users rate both highly.</div>
+
+  <label for="colorBy">Color by</label>
+  <select id="colorBy">
+    <option value="score">Score</option>
+    <option value="year">Year</option>
+    <option value="type">Type</option>
+    <option value="rating_count">Popularity (rating count)</option>
+  </select>
+
+  <label for="searchBox">Search</label>
+  <input type="text" id="searchBox" placeholder="Find an anime...">
+
+  <label>Year</label>
+  <div class="range-row"><span id="yearMinLabel"></span><span id="yearMaxLabel"></span></div>
+  <input type="range" id="yearMin">
+  <input type="range" id="yearMax">
+
+  <label>Score</label>
+  <div class="range-row"><span id="scoreMinLabel"></span><span id="scoreMaxLabel"></span></div>
+  <input type="range" id="scoreMin" min="0" max="10" step="0.1">
+  <input type="range" id="scoreMax" min="0" max="10" step="0.1">
+
+  <label>Type</label>
+  <div id="typeRow"></div>
+
+  <label>Genres (any selected must match)</label>
+  <div id="genreList"></div>
+
+  <button id="resetView">Reset view</button>
+
+  <div id="attribution">
+    Data: <a href="https://www.kaggle.com/datasets/ramazanturann/user-animelist-dataset" target="_blank" rel="noopener">User Animelist Dataset</a>
+    by Ramazan Turan, CC BY-NC 4.0.
+    Layout built from anime co-rated highly by the same users (PMI + SVD +
+    UMAP), not metadata tags. Inspired by
+    <a href="https://osu-atlas.ameo.dev/" target="_blank" rel="noopener">osu!Atlas</a>.
+  </div>
+</div>
+
+<div id="detailPanel"></div>
+
+<script>
+(function () {
+  "use strict";
+
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+  var loadingEl = document.getElementById("loading");
+  var errorEl = document.getElementById("error");
+  var countBadge = document.getElementById("countBadge");
+  var detailPanel = document.getElementById("detailPanel");
+
+  var allAnime = [];
+  var filtered = [];
+  var view = { x: 0, y: 0, scale: 1 };
+  var dragging = false;
+  var lastMouse = null;
+  var hovered = null;
+  var searchMatch = null;
+
+  var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, maxRatingCount: 1 };
+
+  function resizeCanvas() {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    draw();
+  }
+  window.addEventListener("resize", resizeCanvas);
+
+  function worldToScreen(x, y) {
+    return [
+      (x - view.x) * view.scale + canvas.width / 2,
+      (y - view.y) * view.scale + canvas.height / 2,
+    ];
+  }
+  function screenToWorld(sx, sy) {
+    return [
+      (sx - canvas.width / 2) / view.scale + view.x,
+      (sy - canvas.height / 2) / view.scale + view.y,
+    ];
+  }
+
+  function fitView() {
+    var spanX = dataBounds.maxX - dataBounds.minX;
+    var spanY = dataBounds.maxY - dataBounds.minY;
+    view.x = (dataBounds.minX + dataBounds.maxX) / 2;
+    view.y = (dataBounds.minY + dataBounds.maxY) / 2;
+    var margin = 0.9;
+    view.scale = margin * Math.min(canvas.width / spanX, canvas.height / spanY);
+  }
+
+  // --- Color scales -------------------------------------------------
+
+  function lerp(a, b, t) { return a + (b - a) * t; }
+
+  function scoreColor(score) {
+    if (score == null) return "#444455";
+    var t = Math.max(0, Math.min(1, (score - 5) / 5)); // 5-10 range
+    var r = Math.round(lerp(80, 255, t));
+    var g = Math.round(lerp(80, 210, t));
+    var b = Math.round(lerp(220, 60, t));
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function yearColor(year) {
+    if (year == null) return "#444455";
+    var t = Math.max(0, Math.min(1, (year - dataBounds.minYear) / (dataBounds.maxYear - dataBounds.minYear)));
+    var r = Math.round(lerp(80, 255, t));
+    var g = Math.round(lerp(160, 90, t));
+    var b = Math.round(lerp(255, 60, t));
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  var TYPE_COLORS = {
+    TV: "#5a9bff",
+    MOVIE: "#ff7a7a",
+    OVA: "#7aff9b",
+    ONA: "#ffd27a",
+    SPECIAL: "#c07aff",
+    MUSIC: "#ff7ad2",
+  };
+  function typeColor(type) {
+    return TYPE_COLORS[type] || "#888899";
+  }
+
+  function ratingCountColor(count) {
+    if (!count) return "#444455";
+    var t = Math.max(0, Math.min(1, Math.log(count + 1) / Math.log(dataBounds.maxRatingCount + 1)));
+    var r = Math.round(lerp(60, 255, t));
+    var g = Math.round(lerp(60, 200, t));
+    var b = Math.round(lerp(90, 60, t));
+    return "rgb(" + r + "," + g + "," + b + ")";
+  }
+
+  function colorFor(anime) {
+    var mode = document.getElementById("colorBy").value;
+    if (mode === "score") return scoreColor(anime.score);
+    if (mode === "year") return yearColor(anime.year);
+    if (mode === "type") return typeColor(anime.type);
+    if (mode === "rating_count") return ratingCountColor(anime.rating_count);
+    return "#888899";
+  }
+
+  // --- Rendering ------------------------------------------------------
+
+  function draw() {
+    ctx.fillStyle = "#0a0a0f";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    for (var i = 0; i < filtered.length; i++) {
+      var a = filtered[i];
+      var pos = worldToScreen(a.x, a.y);
+      if (pos[0] < -20 || pos[0] > canvas.width + 20 || pos[1] < -20 || pos[1] > canvas.height + 20) continue;
+
+      var radius = 2 + Math.min(4, Math.log((a.rating_count || 1) + 1) / 3);
+      ctx.beginPath();
+      ctx.fillStyle = colorFor(a);
+      ctx.globalAlpha = 0.85;
+      ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = 1;
+
+    if (searchMatch) {
+      var sp = worldToScreen(searchMatch.x, searchMatch.y);
+      ctx.beginPath();
+      ctx.strokeStyle = "#ffffff";
+      ctx.lineWidth = 2;
+      ctx.arc(sp[0], sp[1], 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    countBadge.textContent = filtered.length + " / " + allAnime.length + " anime shown";
+  }
+
+  // --- Interaction ------------------------------------------------------
+
+  canvas.addEventListener("mousedown", function (e) {
+    dragging = true;
+    lastMouse = [e.clientX, e.clientY];
+    canvas.classList.add("dragging");
+  });
+  window.addEventListener("mouseup", function () {
+    dragging = false;
+    canvas.classList.remove("dragging");
+  });
+  window.addEventListener("mousemove", function (e) {
+    if (dragging) {
+      var dx = e.clientX - lastMouse[0];
+      var dy = e.clientY - lastMouse[1];
+      lastMouse = [e.clientX, e.clientY];
+      view.x -= dx / view.scale;
+      view.y -= dy / view.scale;
+      draw();
+    } else {
+      updateHover(e.clientX, e.clientY);
+    }
+  });
+  canvas.addEventListener("wheel", function (e) {
+    e.preventDefault();
+    var before = screenToWorld(e.clientX, e.clientY);
+    var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
+    view.scale *= factor;
+    var after = screenToWorld(e.clientX, e.clientY);
+    view.x -= after[0] - before[0];
+    view.y -= after[1] - before[1];
+    draw();
+  }, { passive: false });
+
+  function updateHover(sx, sy) {
+    var world = screenToWorld(sx, sy);
+    var best = null;
+    var bestDist = 14 / view.scale; // pixel-ish hit radius in world units
+    for (var i = 0; i < filtered.length; i++) {
+      var a = filtered[i];
+      var dx = a.x - world[0];
+      var dy = a.y - world[1];
+      var dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < bestDist) {
+        bestDist = dist;
+        best = a;
+      }
+    }
+    if (best !== hovered) {
+      hovered = best;
+      showDetail(best);
+    }
+  }
+
+  function showDetail(anime) {
+    if (!anime) {
+      detailPanel.style.display = "none";
+      return;
+    }
+    detailPanel.style.display = "block";
+    var img = anime.image_url ? '<img src="' + anime.image_url + '" alt="">' : "";
+    detailPanel.innerHTML =
+      img +
+      "<h2>" + escapeHtml(anime.title) + "</h2>" +
+      '<div class="meta">' + (anime.type || "") + " &middot; " + (anime.year || "?") +
+      " &middot; Score " + (anime.score != null ? anime.score.toFixed(2) : "?") + "</div>" +
+      '<div class="meta">' + escapeHtml((anime.genres || []).join(", ")) + "</div>" +
+      '<a href="' + anime.mal_url + '" target="_blank" rel="noopener">View on MyAnimeList</a>';
+  }
+
+  function escapeHtml(s) {
+    var div = document.createElement("div");
+    div.textContent = s == null ? "" : s;
+    return div.innerHTML;
+  }
+
+  // --- Filters ------------------------------------------------------
+
+  var activeTypes = new Set();
+  var activeGenres = new Set();
+
+  function applyFilters() {
+    var yearMin = Number(document.getElementById("yearMin").value);
+    var yearMax = Number(document.getElementById("yearMax").value);
+    var scoreMin = Number(document.getElementById("scoreMin").value);
+    var scoreMax = Number(document.getElementById("scoreMax").value);
+
+    filtered = allAnime.filter(function (a) {
+      if (a.year != null && (a.year < yearMin || a.year > yearMax)) return false;
+      if (a.score != null && (a.score < scoreMin || a.score > scoreMax)) return false;
+      if (activeTypes.size > 0 && !activeTypes.has(a.type)) return false;
+      if (activeGenres.size > 0) {
+        var hasAny = (a.genres || []).some(function (g) { return activeGenres.has(g); });
+        if (!hasAny) return false;
+      }
+      return true;
+    });
+    draw();
+  }
+
+  function setupRangeControls() {
+    var yearMinInput = document.getElementById("yearMin");
+    var yearMaxInput = document.getElementById("yearMax");
+    yearMinInput.min = yearMaxInput.min = dataBounds.minYear;
+    yearMinInput.max = yearMaxInput.max = dataBounds.maxYear;
+    yearMinInput.value = dataBounds.minYear;
+    yearMaxInput.value = dataBounds.maxYear;
+
+    var scoreMinInput = document.getElementById("scoreMin");
+    var scoreMaxInput = document.getElementById("scoreMax");
+    scoreMinInput.value = 0;
+    scoreMaxInput.value = 10;
+
+    function updateLabels() {
+      document.getElementById("yearMinLabel").textContent = yearMinInput.value;
+      document.getElementById("yearMaxLabel").textContent = yearMaxInput.value;
+      document.getElementById("scoreMinLabel").textContent = Number(scoreMinInput.value).toFixed(1);
+      document.getElementById("scoreMaxLabel").textContent = Number(scoreMaxInput.value).toFixed(1);
+    }
+    updateLabels();
+
+    [yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput].forEach(function (el) {
+      el.addEventListener("input", function () {
+        updateLabels();
+        applyFilters();
+      });
+    });
+  }
+
+  function setupTypeButtons() {
+    var types = Array.from(new Set(allAnime.map(function (a) { return a.type; }).filter(Boolean))).sort();
+    var row = document.getElementById("typeRow");
+    types.forEach(function (type) {
+      var btn = document.createElement("button");
+      btn.textContent = type;
+      btn.addEventListener("click", function () {
+        if (activeTypes.has(type)) {
+          activeTypes.delete(type);
+          btn.classList.remove("active");
+        } else {
+          activeTypes.add(type);
+          btn.classList.add("active");
+        }
+        applyFilters();
+      });
+      row.appendChild(btn);
+    });
+  }
+
+  function setupGenreList() {
+    var genreCounts = {};
+    allAnime.forEach(function (a) {
+      (a.genres || []).forEach(function (g) {
+        genreCounts[g] = (genreCounts[g] || 0) + 1;
+      });
+    });
+    var genres = Object.keys(genreCounts).sort(function (a, b) { return genreCounts[b] - genreCounts[a]; });
+    var list = document.getElementById("genreList");
+    genres.forEach(function (genre) {
+      var label = document.createElement("label");
+      var checkbox = document.createElement("input");
+      checkbox.type = "checkbox";
+      checkbox.addEventListener("change", function () {
+        if (checkbox.checked) activeGenres.add(genre);
+        else activeGenres.delete(genre);
+        applyFilters();
+      });
+      label.appendChild(checkbox);
+      label.appendChild(document.createTextNode(genre + " (" + genreCounts[genre] + ")"));
+      list.appendChild(label);
+    });
+  }
+
+  function setupSearch() {
+    var box = document.getElementById("searchBox");
+    box.addEventListener("input", function () {
+      var q = box.value.trim().toLowerCase();
+      if (!q) {
+        searchMatch = null;
+        draw();
+        return;
+      }
+      var match = allAnime.find(function (a) { return a.title.toLowerCase().indexOf(q) !== -1; });
+      if (match) {
+        searchMatch = match;
+        view.x = match.x;
+        view.y = match.y;
+        view.scale = Math.max(view.scale, 8);
+        draw();
+      }
+    });
+  }
+
+  document.getElementById("colorBy").addEventListener("change", draw);
+  document.getElementById("resetView").addEventListener("click", fitView);
+
+  function animate() {
+    draw();
+    requestAnimationFrame(animate);
+  }
+
+  // --- Load data ------------------------------------------------------
+
+  resizeCanvas();
+
+  fetch("atlas.json")
+    .then(function (r) {
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      return r.json();
+    })
+    .then(function (data) {
+      allAnime = data;
+      filtered = data;
+      loadingEl.style.display = "none";
+
+      var xs = data.map(function (a) { return a.x; });
+      var ys = data.map(function (a) { return a.y; });
+      var years = data.map(function (a) { return a.year; }).filter(function (y) { return y != null; });
+      var ratingCounts = data.map(function (a) { return a.rating_count || 0; });
+
+      dataBounds.minX = Math.min.apply(null, xs);
+      dataBounds.maxX = Math.max.apply(null, xs);
+      dataBounds.minY = Math.min.apply(null, ys);
+      dataBounds.maxY = Math.max.apply(null, ys);
+      dataBounds.minYear = Math.min.apply(null, years);
+      dataBounds.maxYear = Math.max.apply(null, years);
+      dataBounds.maxRatingCount = Math.max.apply(null, ratingCounts);
+
+      fitView();
+      setupRangeControls();
+      setupTypeButtons();
+      setupGenreList();
+      setupSearch();
+      animate();
+    })
+    .catch(function (err) {
+      loadingEl.style.display = "none";
+      errorEl.style.display = "block";
+      console.error(err);
+    });
+})();
+</script>
+
+</body>
+</html>

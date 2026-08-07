@@ -60,13 +60,21 @@ page itself, not just in a README.
    rating-count threshold (exact threshold TBD during implementation --
    goal is cutting obscure/noisy titles with too few ratings to place
    meaningfully, without cutting so aggressively that niche genres vanish).
-3. **Embed**: treat each user's set of highly-rated anime (e.g. rating >=
-   8) as an unordered "sentence" of anime IDs, and train item embeddings
-   via skip-gram (gensim `Word2Vec`, `sg=1`) over these sentences -- anime
-   that co-occur in the same users' favorite sets end up with similar
-   vectors. This is the direct anime-domain equivalent of what osu!Atlas's
-   "How it Was Built" section describes doing with tracked users' top
-   plays.
+3. **Embed**: for each user's set of highly-rated anime (e.g. rating >= 8),
+   build a co-occurrence matrix -- how often each pair of anime shows up
+   in the same user's favorite set -- convert to pointwise mutual
+   information (PMI) to down-weight pairs that co-occur only because both
+   are broadly popular, then reduce with truncated SVD to get a dense
+   vector per anime. Anime that co-occur in the same users' favorite sets
+   end up with similar vectors -- the direct anime-domain equivalent of
+   what osu!Atlas's "How it Was Built" section describes doing with
+   tracked users' top plays. (Originally planned as gensim `Word2Vec`
+   skip-gram over per-user "sentences" of anime IDs -- switched to PMI+SVD
+   because gensim has no prebuilt wheel for Python 3.14 yet and requires a
+   C build toolchain neither installed nor worth requiring for this;
+   PMI+SVD is a well-established pre-word2vec alternative for exactly this
+   kind of co-occurrence data and needs only pandas/scipy/scikit-learn,
+   all of which install cleanly.)
 4. **Project to 2D**: run UMAP over the resulting item vectors to get an
    (x, y) position per anime, preserving both local neighborhoods (so
    near-duplicates/sequels cluster tightly) and coarser genre-level

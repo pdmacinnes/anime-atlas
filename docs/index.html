@@ -6,42 +6,42 @@
 <title>Anime Atlas</title>
 <style>
   :root {
-    --bg: #0a0a0f;
-    --canvas-bg: #0a0a0f;
+    --bg: #0a0a0a;
+    --canvas-bg: #0a0a0a;
     --text: #e6e6e6;
     --text-dim: #999;
     --text-dimmer: #666;
-    --sidebar-bg: rgba(15, 15, 22, 0.92);
-    --border: #2a2a35;
-    --control-bg: #1a1a24;
-    --control-border: #333340;
-    --button-bg: #24243a;
-    --button-border: #3a3a50;
+    --sidebar-bg: rgba(10, 10, 10, 0.92);
+    --border: #2a2a2a;
+    --control-bg: #1a1a1a;
+    --control-border: #333333;
+    --button-bg: #242424;
+    --button-border: #3a3a3a;
     --accent: #7a7aff;
     --active-bg: #3a3a80;
     --active-border: #5a5ac0;
     --ring: #ffffff;
-    --badge-bg: rgba(20, 20, 28, 0.85);
+    --badge-bg: rgba(10, 10, 10, 0.85);
     --badge-text: #e6e6e6;
   }
   html[data-theme="light"] {
-    --bg: #f4f4f7;
-    --canvas-bg: #f4f4f7;
-    --text: #1a1a22;
+    --bg: #dbdbdb;
+    --canvas-bg: #dbdbdb;
+    --text: #1a1a1a;
     --text-dim: #555;
     --text-dimmer: #777;
-    --sidebar-bg: rgba(255, 255, 255, 0.92);
-    --border: #d5d5dd;
-    --control-bg: #ffffff;
-    --control-border: #c8c8d2;
-    --button-bg: #e8e8f0;
-    --button-border: #c0c0d0;
+    --sidebar-bg: rgba(219, 219, 219, 0.92);
+    --border: #c0c0c0;
+    --control-bg: #ececec;
+    --control-border: #b5b5b5;
+    --button-bg: #e5e5e5;
+    --button-border: #b0b0b0;
     --accent: #4040c0;
     --active-bg: #cfcfff;
     --active-border: #7a7ae0;
     --ring: #111111;
-    --badge-bg: rgba(255, 255, 255, 0.9);
-    --badge-text: #1a1a22;
+    --badge-bg: rgba(219, 219, 219, 0.9);
+    --badge-text: #1a1a1a;
   }
   html, body {
     margin: 0;
@@ -340,6 +340,7 @@
   var searchMatch = null;
 
   var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, maxRatingCount: 1 };
+  var sortedYears = []; // for percentile-rank year coloring -- see yearPercentile()
 
   // --- Theme ------------------------------------------------------
 
@@ -396,46 +397,89 @@
   }
 
   // --- Color scales -------------------------------------------------
+  // Validated against this page's actual surfaces (#dbdbdb light /
+  // #0a0a0a dark) via the dataviz skill's validator, not eyeballed.
+  //
+  // Sequential (score/year/popularity): single-hue blue ramp, per "sequential
+  // = one hue, light->dark" -- these three "color by" modes are never shown
+  // at once, so they share the one default ramp rather than each getting
+  // its own hue.
+  //
+  // Categorical (type): a scatter plot needs every color pair to be
+  // distinguishable at once (not just neighbors, like a stacked bar would),
+  // and that "all-pairs" bar caps out at 3 validated hues with this palette
+  // -- a 4th always broke CVD separation in one theme or the other, tested
+  // directly with the validator rather than assumed. TV/SPECIAL/MOVIE are
+  // this dataset's 3 largest types (4407/2405/1998 of 11648), so they get
+  // the validated hues; OVA/ONA fold into a neutral "Other" -- type is
+  // always visible as text too (legend, filter buttons, detail panel), so
+  // color is never the only way to identify it.
 
   function lerp(a, b, t) { return a + (b - a) * t; }
 
+  function hexToRgb(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+  }
+
+  var SEQUENTIAL_RAMP = [
+    "#cde2fb", "#b7d3f6", "#9ec5f4", "#86b6ef", "#6da7ec", "#5598e7",
+    "#3987e5", "#2a78d6", "#256abf", "#1c5cab", "#184f95", "#104281", "#0d366b",
+  ].map(hexToRgb);
+
+  function sequentialColor(t) {
+    t = Math.max(0, Math.min(1, t));
+    var scaled = t * (SEQUENTIAL_RAMP.length - 1);
+    var i = Math.min(SEQUENTIAL_RAMP.length - 2, Math.floor(scaled));
+    var localT = scaled - i;
+    var a = SEQUENTIAL_RAMP[i];
+    var b = SEQUENTIAL_RAMP[i + 1];
+    var r = Math.round(lerp(a[0], b[0], localT));
+    var g = Math.round(lerp(a[1], b[1], localT));
+    var bl = Math.round(lerp(a[2], b[2], localT));
+    return "rgb(" + r + "," + g + "," + bl + ")";
+  }
+
   function scoreColor(score) {
-    if (score == null) return "#444455";
-    var t = Math.max(0, Math.min(1, (score - 5) / 5)); // 5-10 range
-    var r = Math.round(lerp(80, 255, t));
-    var g = Math.round(lerp(80, 210, t));
-    var b = Math.round(lerp(220, 60, t));
-    return "rgb(" + r + "," + g + "," + b + ")";
+    if (score == null) return cssVar("--text-dimmer") || "#888";
+    return sequentialColor((score - 5) / 5); // 5-10 range
+  }
+
+  // Year is heavily skewed (median 2012; only ~4% of anime predate 1980,
+  // but the axis stretches back to 1907), so a raw min-max scale crams 90%
+  // of real data into the top ~30% of the gradient and everything looks
+  // nearly the same color. Percentile rank (how this year compares to the
+  // rest of the actual dataset) spreads the scale by how the data is really
+  // distributed instead of by the raw range.
+  function yearPercentile(year) {
+    if (sortedYears.length === 0) return 0.5;
+    var lo = 0, hi = sortedYears.length;
+    while (lo < hi) {
+      var mid = (lo + hi) >> 1;
+      if (sortedYears[mid] <= year) lo = mid + 1;
+      else hi = mid;
+    }
+    return lo / sortedYears.length;
   }
 
   function yearColor(year) {
-    if (year == null) return "#444455";
-    var t = Math.max(0, Math.min(1, (year - dataBounds.minYear) / (dataBounds.maxYear - dataBounds.minYear)));
-    var r = Math.round(lerp(80, 255, t));
-    var g = Math.round(lerp(160, 90, t));
-    var b = Math.round(lerp(255, 60, t));
-    return "rgb(" + r + "," + g + "," + b + ")";
-  }
-
-  var TYPE_COLORS = {
-    TV: "#5a9bff",
-    MOVIE: "#ff7a7a",
-    OVA: "#7aff9b",
-    ONA: "#ffd27a",
-    SPECIAL: "#c07aff",
-    MUSIC: "#ff7ad2",
-  };
-  function typeColor(type) {
-    return TYPE_COLORS[type] || "#888899";
+    if (year == null) return cssVar("--text-dimmer") || "#888";
+    return sequentialColor(yearPercentile(year));
   }
 
   function ratingCountColor(count) {
-    if (!count) return "#444455";
-    var t = Math.max(0, Math.min(1, Math.log(count + 1) / Math.log(dataBounds.maxRatingCount + 1)));
-    var r = Math.round(lerp(60, 255, t));
-    var g = Math.round(lerp(60, 200, t));
-    var b = Math.round(lerp(90, 60, t));
-    return "rgb(" + r + "," + g + "," + b + ")";
+    if (!count) return cssVar("--text-dimmer") || "#888";
+    return sequentialColor(Math.log(count + 1) / Math.log(dataBounds.maxRatingCount + 1));
+  }
+
+  var TYPE_COLORS = {
+    light: { TV: "#2a78d6", SPECIAL: "#eb6834", MOVIE: "#1baf7a", other: "#6b6b6b" },
+    dark: { TV: "#3987e5", SPECIAL: "#d95926", MOVIE: "#199e70", other: "#9a9a9a" },
+  };
+  function typeColor(type) {
+    var theme = document.documentElement.getAttribute("data-theme") || "dark";
+    var set = TYPE_COLORS[theme];
+    return set[type] || set.other;
   }
 
   function colorFor(anime) {
@@ -455,16 +499,27 @@
     legend.innerHTML = "";
 
     if (mode === "type") {
+      // Only 3 types get their own validated hue (see the Color scales
+      // comment above); everything else shares one "Other" swatch --
+      // group by actual rendered color so those don't show as separate,
+      // confusingly-identical-looking rows.
       var wrap = document.createElement("div");
       wrap.className = "legend-swatches";
       var types = Array.from(new Set(allAnime.map(function (a) { return a.type; }).filter(Boolean))).sort();
+      var labelsByColor = {};
       types.forEach(function (type) {
+        var color = typeColor(type);
+        labelsByColor[color] = (labelsByColor[color] || []).concat(type);
+      });
+      Object.keys(labelsByColor).forEach(function (color) {
         var row = document.createElement("div");
         var swatch = document.createElement("span");
         swatch.className = "swatch";
-        swatch.style.background = typeColor(type);
+        swatch.style.background = color;
         row.appendChild(swatch);
-        row.appendChild(document.createTextNode(type));
+        var labels = labelsByColor[color];
+        var text = labels.length > 1 ? labels.join(", ") + " (other)" : labels[0];
+        row.appendChild(document.createTextNode(text));
         wrap.appendChild(row);
       });
       legend.appendChild(wrap);
@@ -833,6 +888,7 @@
       dataBounds.minYear = Math.min.apply(null, years);
       dataBounds.maxYear = Math.max.apply(null, years);
       dataBounds.maxRatingCount = Math.max.apply(null, ratingCounts);
+      sortedYears = years.slice().sort(function (a, b) { return a - b; });
 
       fitView();
       setupRangeControls();

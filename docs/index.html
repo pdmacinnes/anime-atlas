@@ -5,11 +5,49 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Anime Atlas</title>
 <style>
+  :root {
+    --bg: #0a0a0f;
+    --canvas-bg: #0a0a0f;
+    --text: #e6e6e6;
+    --text-dim: #999;
+    --text-dimmer: #666;
+    --sidebar-bg: rgba(15, 15, 22, 0.92);
+    --border: #2a2a35;
+    --control-bg: #1a1a24;
+    --control-border: #333340;
+    --button-bg: #24243a;
+    --button-border: #3a3a50;
+    --accent: #7a7aff;
+    --active-bg: #3a3a80;
+    --active-border: #5a5ac0;
+    --ring: #ffffff;
+    --badge-bg: rgba(20, 20, 28, 0.85);
+    --badge-text: #e6e6e6;
+  }
+  html[data-theme="light"] {
+    --bg: #f4f4f7;
+    --canvas-bg: #f4f4f7;
+    --text: #1a1a22;
+    --text-dim: #555;
+    --text-dimmer: #777;
+    --sidebar-bg: rgba(255, 255, 255, 0.92);
+    --border: #d5d5dd;
+    --control-bg: #ffffff;
+    --control-border: #c8c8d2;
+    --button-bg: #e8e8f0;
+    --button-border: #c0c0d0;
+    --accent: #4040c0;
+    --active-bg: #cfcfff;
+    --active-border: #7a7ae0;
+    --ring: #111111;
+    --badge-bg: rgba(255, 255, 255, 0.9);
+    --badge-text: #1a1a22;
+  }
   html, body {
     margin: 0;
     padding: 0;
-    background: #0a0a0f;
-    color: #e6e6e6;
+    background: var(--bg);
+    color: var(--text);
     font-family: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     overflow: hidden;
     height: 100%;
@@ -29,8 +67,8 @@
     left: 0;
     width: 260px;
     height: 100%;
-    background: rgba(15, 15, 22, 0.92);
-    border-right: 1px solid #2a2a35;
+    background: var(--sidebar-bg);
+    border-right: 1px solid var(--border);
     padding: 14px;
     box-sizing: border-box;
     overflow-y: auto;
@@ -41,7 +79,7 @@
     margin: 0 0 4px 0;
   }
   #sidebar .subtitle {
-    color: #888;
+    color: var(--text-dim);
     font-size: 11px;
     margin-bottom: 14px;
   }
@@ -49,7 +87,7 @@
     display: block;
     margin-top: 12px;
     margin-bottom: 4px;
-    color: #aaa;
+    color: var(--text-dim);
     font-size: 11px;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -57,9 +95,9 @@
   #sidebar select, #sidebar input[type="text"] {
     width: 100%;
     box-sizing: border-box;
-    background: #1a1a24;
-    color: #e6e6e6;
-    border: 1px solid #333340;
+    background: var(--control-bg);
+    color: var(--text);
+    border: 1px solid var(--control-border);
     padding: 5px 6px;
     font-size: 13px;
     border-radius: 3px;
@@ -68,7 +106,7 @@
     display: flex;
     justify-content: space-between;
     font-size: 11px;
-    color: #999;
+    color: var(--text-dim);
   }
   input[type="range"] {
     width: 100%;
@@ -76,8 +114,8 @@
   #genreList {
     max-height: 160px;
     overflow-y: auto;
-    background: #14141c;
-    border: 1px solid #2a2a35;
+    background: var(--control-bg);
+    border: 1px solid var(--border);
     border-radius: 3px;
     padding: 4px 6px;
   }
@@ -87,7 +125,7 @@
     gap: 6px;
     text-transform: none;
     font-size: 12px;
-    color: #ccc;
+    color: var(--text);
     margin: 2px 0;
   }
   #typeRow {
@@ -96,47 +134,76 @@
     gap: 6px;
   }
   #typeRow button {
-    background: #1a1a24;
-    color: #ccc;
-    border: 1px solid #333340;
+    background: var(--control-bg);
+    color: var(--text);
+    border: 1px solid var(--control-border);
     border-radius: 3px;
     padding: 3px 8px;
     font-size: 12px;
     cursor: pointer;
   }
   #typeRow button.active {
-    background: #3a3a80;
-    border-color: #5a5ac0;
-    color: #fff;
+    background: var(--active-bg);
+    border-color: var(--active-border);
+    color: var(--text);
   }
-  #resetView {
+  #resetView, #resetFilters, #themeToggle {
     margin-top: 14px;
     width: 100%;
-    background: #24243a;
-    color: #ccc;
-    border: 1px solid #3a3a50;
+    background: var(--button-bg);
+    color: var(--text);
+    border: 1px solid var(--button-border);
     border-radius: 3px;
     padding: 6px;
     cursor: pointer;
   }
+  #legend {
+    margin-top: 8px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+  #legend canvas {
+    display: block;
+    width: 100%;
+    height: 14px;
+    border-radius: 2px;
+    border: 1px solid var(--control-border);
+  }
+  #legend .legend-labels {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 3px;
+  }
+  #legend .legend-swatches div {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin: 2px 0;
+  }
+  #legend .swatch {
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
   #attribution {
     margin-top: 16px;
     font-size: 10px;
-    color: #666;
+    color: var(--text-dimmer);
     line-height: 1.5;
-    border-top: 1px solid #2a2a35;
+    border-top: 1px solid var(--border);
     padding-top: 10px;
   }
   #attribution a {
-    color: #7a7aff;
+    color: var(--accent);
   }
   #detailPanel {
     position: fixed;
     bottom: 16px;
     right: 16px;
     width: 260px;
-    background: rgba(15, 15, 22, 0.95);
-    border: 1px solid #2a2a35;
+    background: var(--sidebar-bg);
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 12px;
     display: none;
@@ -150,20 +217,36 @@
   #detailPanel h2 {
     font-size: 14px;
     margin: 0 0 4px 0;
+    padding-right: 20px;
   }
   #detailPanel .meta {
-    color: #999;
+    color: var(--text-dim);
     margin-bottom: 6px;
   }
   #detailPanel a {
-    color: #7a7aff;
+    color: var(--accent);
+  }
+  #closeDetail {
+    position: absolute;
+    top: 8px;
+    right: 10px;
+    background: none;
+    border: none;
+    color: var(--text-dim);
+    font-size: 18px;
+    line-height: 1;
+    cursor: pointer;
+    padding: 2px 4px;
+  }
+  #closeDetail:hover {
+    color: var(--text);
   }
   #loading, #error {
     position: fixed;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    color: #999;
+    color: var(--text-dim);
   }
   #error {
     color: #ff6b6b;
@@ -171,10 +254,15 @@
   }
   #countBadge {
     position: fixed;
-    bottom: 12px;
+    bottom: 14px;
     left: 274px;
-    color: #666;
-    font-size: 11px;
+    color: var(--badge-text);
+    background: var(--badge-bg);
+    border: 1px solid var(--border);
+    padding: 5px 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    font-weight: 600;
   }
 </style>
 </head>
@@ -196,6 +284,7 @@
     <option value="type">Type</option>
     <option value="rating_count">Popularity (rating count)</option>
   </select>
+  <div id="legend"></div>
 
   <label for="searchBox">Search</label>
   <input type="text" id="searchBox" placeholder="Find an anime...">
@@ -216,7 +305,9 @@
   <label>Genres (any selected must match)</label>
   <div id="genreList"></div>
 
-  <button id="resetView">Reset view</button>
+  <button id="resetView">Reset view (pan/zoom)</button>
+  <button id="resetFilters">Reset all filters</button>
+  <button id="themeToggle">Switch to light mode</button>
 
   <div id="attribution">
     Data: <a href="https://www.kaggle.com/datasets/ramazanturann/user-animelist-dataset" target="_blank" rel="noopener">User Animelist Dataset</a>
@@ -249,6 +340,31 @@
   var searchMatch = null;
 
   var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, maxRatingCount: 1 };
+
+  // --- Theme ------------------------------------------------------
+
+  function cssVar(name) {
+    return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  }
+
+  function applyTheme(theme) {
+    document.documentElement.setAttribute("data-theme", theme);
+    localStorage.setItem("atlasTheme", theme);
+    document.getElementById("themeToggle").textContent =
+      theme === "light" ? "Switch to dark mode" : "Switch to light mode";
+    draw();
+  }
+
+  (function initTheme() {
+    var saved = localStorage.getItem("atlasTheme");
+    var preferred = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+    applyTheme(preferred);
+  })();
+
+  document.getElementById("themeToggle").addEventListener("click", function () {
+    var current = document.documentElement.getAttribute("data-theme");
+    applyTheme(current === "light" ? "dark" : "light");
+  });
 
   function resizeCanvas() {
     canvas.width = window.innerWidth;
@@ -331,10 +447,62 @@
     return "#888899";
   }
 
+  // A key for whatever "Color by" is currently active -- without this
+  // there's no way to tell what a given dot's color actually means.
+  function renderLegend() {
+    var mode = document.getElementById("colorBy").value;
+    var legend = document.getElementById("legend");
+    legend.innerHTML = "";
+
+    if (mode === "type") {
+      var wrap = document.createElement("div");
+      wrap.className = "legend-swatches";
+      var types = Array.from(new Set(allAnime.map(function (a) { return a.type; }).filter(Boolean))).sort();
+      types.forEach(function (type) {
+        var row = document.createElement("div");
+        var swatch = document.createElement("span");
+        swatch.className = "swatch";
+        swatch.style.background = typeColor(type);
+        row.appendChild(swatch);
+        row.appendChild(document.createTextNode(type));
+        wrap.appendChild(row);
+      });
+      legend.appendChild(wrap);
+      return;
+    }
+
+    var colorFn, minLabel, maxLabel;
+    if (mode === "score") {
+      colorFn = function (t) { return scoreColor(5 + t * 5); };
+      minLabel = "5.0"; maxLabel = "10.0";
+    } else if (mode === "year") {
+      colorFn = function (t) { return yearColor(dataBounds.minYear + t * (dataBounds.maxYear - dataBounds.minYear)); };
+      minLabel = String(dataBounds.minYear); maxLabel = String(dataBounds.maxYear);
+    } else {
+      colorFn = function (t) { return ratingCountColor(Math.round(Math.exp(t * Math.log(dataBounds.maxRatingCount + 1))) - 1); };
+      minLabel = "1"; maxLabel = dataBounds.maxRatingCount.toLocaleString();
+    }
+
+    var bar = document.createElement("canvas");
+    bar.width = 200;
+    bar.height = 14;
+    var bctx = bar.getContext("2d");
+    for (var x = 0; x < bar.width; x++) {
+      bctx.fillStyle = colorFn(x / (bar.width - 1));
+      bctx.fillRect(x, 0, 1, bar.height);
+    }
+    legend.appendChild(bar);
+
+    var labels = document.createElement("div");
+    labels.className = "legend-labels";
+    labels.innerHTML = "<span>" + minLabel + "</span><span>" + maxLabel + "</span>";
+    legend.appendChild(labels);
+  }
+
   // --- Rendering ------------------------------------------------------
 
   function draw() {
-    ctx.fillStyle = "#0a0a0f";
+    ctx.fillStyle = cssVar("--canvas-bg") || "#0a0a0f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     for (var i = 0; i < filtered.length; i++) {
@@ -354,9 +522,18 @@
     if (searchMatch) {
       var sp = worldToScreen(searchMatch.x, searchMatch.y);
       ctx.beginPath();
-      ctx.strokeStyle = "#ffffff";
+      ctx.strokeStyle = cssVar("--ring") || "#ffffff";
       ctx.lineWidth = 2;
       ctx.arc(sp[0], sp[1], 10, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (selected) {
+      var sel = worldToScreen(selected.x, selected.y);
+      ctx.beginPath();
+      ctx.strokeStyle = cssVar("--ring") || "#ffffff";
+      ctx.lineWidth = 1.5;
+      ctx.arc(sel[0], sel[1], 7, 0, Math.PI * 2);
       ctx.stroke();
     }
 
@@ -364,26 +541,44 @@
   }
 
   // --- Interaction ------------------------------------------------------
+  // Click (no meaningful movement between mousedown/mouseup) selects a
+  // point and pins the detail panel open; dragging past a small threshold
+  // pans instead. The panel stays open (so its link is actually clickable)
+  // until the user picks another point or hits its close button -- it
+  // used to follow hover, which meant moving the mouse toward the panel
+  // itself closed it before you could click anything in it.
+
+  var mouseDownAt = null;
+  var DRAG_THRESHOLD_PX = 4;
+  var selected = null;
 
   canvas.addEventListener("mousedown", function (e) {
-    dragging = true;
+    mouseDownAt = [e.clientX, e.clientY];
     lastMouse = [e.clientX, e.clientY];
-    canvas.classList.add("dragging");
   });
-  window.addEventListener("mouseup", function () {
-    dragging = false;
-    canvas.classList.remove("dragging");
+  window.addEventListener("mouseup", function (e) {
+    if (dragging) {
+      dragging = false;
+      canvas.classList.remove("dragging");
+    } else if (mouseDownAt && e.target === canvas) {
+      selectNearest(e.clientX, e.clientY);
+    }
+    mouseDownAt = null;
   });
   window.addEventListener("mousemove", function (e) {
-    if (dragging) {
-      var dx = e.clientX - lastMouse[0];
-      var dy = e.clientY - lastMouse[1];
-      lastMouse = [e.clientX, e.clientY];
-      view.x -= dx / view.scale;
-      view.y -= dy / view.scale;
-      draw();
-    } else {
-      updateHover(e.clientX, e.clientY);
+    if (mouseDownAt) {
+      var movedX = e.clientX - mouseDownAt[0];
+      var movedY = e.clientY - mouseDownAt[1];
+      if (dragging || Math.sqrt(movedX * movedX + movedY * movedY) > DRAG_THRESHOLD_PX) {
+        dragging = true;
+        canvas.classList.add("dragging");
+        var dx = e.clientX - lastMouse[0];
+        var dy = e.clientY - lastMouse[1];
+        lastMouse = [e.clientX, e.clientY];
+        view.x -= dx / view.scale;
+        view.y -= dy / view.scale;
+        draw();
+      }
     }
   });
   canvas.addEventListener("wheel", function (e) {
@@ -397,7 +592,7 @@
     draw();
   }, { passive: false });
 
-  function updateHover(sx, sy) {
+  function selectNearest(sx, sy) {
     var world = screenToWorld(sx, sy);
     var best = null;
     var bestDist = 14 / view.scale; // pixel-ish hit radius in world units
@@ -411,10 +606,8 @@
         best = a;
       }
     }
-    if (best !== hovered) {
-      hovered = best;
-      showDetail(best);
-    }
+    selected = best;
+    showDetail(selected);
   }
 
   function showDetail(anime) {
@@ -425,12 +618,17 @@
     detailPanel.style.display = "block";
     var img = anime.image_url ? '<img src="' + anime.image_url + '" alt="">' : "";
     detailPanel.innerHTML =
+      '<button id="closeDetail" aria-label="Close">&times;</button>' +
       img +
       "<h2>" + escapeHtml(anime.title) + "</h2>" +
       '<div class="meta">' + (anime.type || "") + " &middot; " + (anime.year || "?") +
       " &middot; Score " + (anime.score != null ? anime.score.toFixed(2) : "?") + "</div>" +
       '<div class="meta">' + escapeHtml((anime.genres || []).join(", ")) + "</div>" +
       '<a href="' + anime.mal_url + '" target="_blank" rel="noopener">View on MyAnimeList</a>';
+    document.getElementById("closeDetail").addEventListener("click", function () {
+      selected = null;
+      showDetail(null);
+    });
   }
 
   function escapeHtml(s) {
@@ -463,32 +661,57 @@
     draw();
   }
 
-  function setupRangeControls() {
-    var yearMinInput = document.getElementById("yearMin");
-    var yearMaxInput = document.getElementById("yearMax");
-    yearMinInput.min = yearMaxInput.min = dataBounds.minYear;
-    yearMinInput.max = yearMaxInput.max = dataBounds.maxYear;
+  var yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput;
+
+  function updateRangeLabels() {
+    document.getElementById("yearMinLabel").textContent = yearMinInput.value;
+    document.getElementById("yearMaxLabel").textContent = yearMaxInput.value;
+    document.getElementById("scoreMinLabel").textContent = Number(scoreMinInput.value).toFixed(1);
+    document.getElementById("scoreMaxLabel").textContent = Number(scoreMaxInput.value).toFixed(1);
+  }
+
+  function resetRangeInputs() {
     yearMinInput.value = dataBounds.minYear;
     yearMaxInput.value = dataBounds.maxYear;
-
-    var scoreMinInput = document.getElementById("scoreMin");
-    var scoreMaxInput = document.getElementById("scoreMax");
     scoreMinInput.value = 0;
     scoreMaxInput.value = 10;
+    updateRangeLabels();
+  }
 
-    function updateLabels() {
-      document.getElementById("yearMinLabel").textContent = yearMinInput.value;
-      document.getElementById("yearMaxLabel").textContent = yearMaxInput.value;
-      document.getElementById("scoreMinLabel").textContent = Number(scoreMinInput.value).toFixed(1);
-      document.getElementById("scoreMaxLabel").textContent = Number(scoreMaxInput.value).toFixed(1);
-    }
-    updateLabels();
+  function setupRangeControls() {
+    yearMinInput = document.getElementById("yearMin");
+    yearMaxInput = document.getElementById("yearMax");
+    yearMinInput.min = yearMaxInput.min = dataBounds.minYear;
+    yearMinInput.max = yearMaxInput.max = dataBounds.maxYear;
 
-    [yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput].forEach(function (el) {
-      el.addEventListener("input", function () {
-        updateLabels();
-        applyFilters();
-      });
+    scoreMinInput = document.getElementById("scoreMin");
+    scoreMaxInput = document.getElementById("scoreMax");
+
+    resetRangeInputs();
+
+    // Two stacked <input type="range"> elements simulate a dual-handle
+    // slider, but nothing stops one from being dragged past the other --
+    // that inverts the range (min > max) and silently hides every point.
+    // Clamp each pair against the other so that can't happen.
+    yearMinInput.addEventListener("input", function () {
+      if (Number(yearMinInput.value) > Number(yearMaxInput.value)) yearMaxInput.value = yearMinInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
+    yearMaxInput.addEventListener("input", function () {
+      if (Number(yearMaxInput.value) < Number(yearMinInput.value)) yearMinInput.value = yearMaxInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
+    scoreMinInput.addEventListener("input", function () {
+      if (Number(scoreMinInput.value) > Number(scoreMaxInput.value)) scoreMaxInput.value = scoreMinInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
+    scoreMaxInput.addEventListener("input", function () {
+      if (Number(scoreMaxInput.value) < Number(scoreMinInput.value)) scoreMinInput.value = scoreMaxInput.value;
+      updateRangeLabels();
+      applyFilters();
     });
   }
 
@@ -556,8 +779,28 @@
     });
   }
 
-  document.getElementById("colorBy").addEventListener("change", draw);
+  document.getElementById("colorBy").addEventListener("change", function () {
+    renderLegend();
+    draw();
+  });
   document.getElementById("resetView").addEventListener("click", fitView);
+
+  document.getElementById("resetFilters").addEventListener("click", function () {
+    resetRangeInputs();
+    activeTypes.clear();
+    document.querySelectorAll("#typeRow button.active").forEach(function (btn) {
+      btn.classList.remove("active");
+    });
+    activeGenres.clear();
+    document.querySelectorAll("#genreList input[type=checkbox]").forEach(function (cb) {
+      cb.checked = false;
+    });
+    document.getElementById("searchBox").value = "";
+    searchMatch = null;
+    selected = null;
+    showDetail(null);
+    applyFilters();
+  });
 
   function animate() {
     draw();
@@ -596,6 +839,7 @@
       setupTypeButtons();
       setupGenreList();
       setupSearch();
+      renderLegend();
       animate();
     })
     .catch(function (err) {

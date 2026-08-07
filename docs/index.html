@@ -310,19 +310,27 @@
 
   <label>Year</label>
   <div class="range-row">
-    <input type="number" id="yearMinLabel" step="1">
-    <input type="number" id="yearMaxLabel" step="1">
+    <input type="text" inputmode="numeric" id="yearMinLabel">
+    <input type="text" inputmode="numeric" id="yearMaxLabel">
   </div>
   <input type="range" id="yearMin">
   <input type="range" id="yearMax">
 
   <label>Score</label>
   <div class="range-row">
-    <input type="number" id="scoreMinLabel" min="0" max="10" step="0.1">
-    <input type="number" id="scoreMaxLabel" min="0" max="10" step="0.1">
+    <input type="text" inputmode="decimal" id="scoreMinLabel">
+    <input type="text" inputmode="decimal" id="scoreMaxLabel">
   </div>
   <input type="range" id="scoreMin" min="0" max="10" step="0.1">
   <input type="range" id="scoreMax" min="0" max="10" step="0.1">
+
+  <label>Popularity (rating count)</label>
+  <div class="range-row">
+    <input type="text" inputmode="numeric" id="popularityMinLabel">
+    <input type="text" inputmode="numeric" id="popularityMaxLabel">
+  </div>
+  <input type="range" id="popularityMin" step="0.001">
+  <input type="range" id="popularityMax" step="0.001">
 
   <label>Type</label>
   <div id="typeRow"></div>
@@ -364,7 +372,7 @@
   var hovered = null;
   var searchMatch = null;
 
-  var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, maxRatingCount: 1 };
+  var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, minRatingCount: 1, maxRatingCount: 1 };
   var sortedYears = []; // for percentile-rank coloring -- see percentileRank()
   var sortedRatingCounts = [];
 
@@ -731,11 +739,21 @@
   var activeTypes = new Set();
   var activeGenres = new Set();
 
+  // Popularity spans a ~9,500x range (min ~100, max ~956,713), so the
+  // slider itself operates in log-space internally (smooth, usable drag
+  // across the full range) while displaying/accepting real counts --
+  // same principle as the percentile-based coloring, applied to the
+  // control this time instead of the color scale.
+  function countToLog(count) { return Math.log(Math.max(count, dataBounds.minRatingCount)); }
+  function logToCount(logValue) { return Math.round(Math.exp(logValue)); }
+
   function applyFilters() {
     var yearMin = Number(document.getElementById("yearMin").value);
     var yearMax = Number(document.getElementById("yearMax").value);
     var scoreMin = Number(document.getElementById("scoreMin").value);
     var scoreMax = Number(document.getElementById("scoreMax").value);
+    var popularityMin = logToCount(Number(document.getElementById("popularityMin").value));
+    var popularityMax = logToCount(Number(document.getElementById("popularityMax").value));
 
     var yearFilterActive = yearMin > dataBounds.minYear || yearMax < dataBounds.maxYear;
     var scoreFilterActive = scoreMin > 0 || scoreMax < 10;
@@ -747,6 +765,7 @@
       // filter is at its full default range (i.e. not actually filtering).
       if (a.year == null ? yearFilterActive : (a.year < yearMin || a.year > yearMax)) return false;
       if (a.score == null ? scoreFilterActive : (a.score < scoreMin || a.score > scoreMax)) return false;
+      if ((a.rating_count || 0) < popularityMin || (a.rating_count || 0) > popularityMax) return false;
       if (activeTypes.size > 0 && !activeTypes.has(a.type)) return false;
       if (activeGenres.size > 0) {
         // Filters narrow the result set, they don't widen it -- selecting
@@ -761,7 +780,7 @@
     draw();
   }
 
-  var yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput;
+  var yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput, popularityMinInput, popularityMaxInput;
 
   function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
 
@@ -770,6 +789,8 @@
     document.getElementById("yearMaxLabel").value = yearMaxInput.value;
     document.getElementById("scoreMinLabel").value = Number(scoreMinInput.value).toFixed(1);
     document.getElementById("scoreMaxLabel").value = Number(scoreMaxInput.value).toFixed(1);
+    document.getElementById("popularityMinLabel").value = logToCount(Number(popularityMinInput.value)).toLocaleString();
+    document.getElementById("popularityMaxLabel").value = logToCount(Number(popularityMaxInput.value)).toLocaleString();
   }
 
   function resetRangeInputs() {
@@ -777,6 +798,8 @@
     yearMaxInput.value = dataBounds.maxYear;
     scoreMinInput.value = 0;
     scoreMaxInput.value = 10;
+    popularityMinInput.value = countToLog(dataBounds.minRatingCount);
+    popularityMaxInput.value = countToLog(dataBounds.maxRatingCount);
     updateRangeLabels();
   }
 
@@ -789,20 +812,35 @@
     scoreMinInput = document.getElementById("scoreMin");
     scoreMaxInput = document.getElementById("scoreMax");
 
+    popularityMinInput = document.getElementById("popularityMin");
+    popularityMaxInput = document.getElementById("popularityMax");
+    popularityMinInput.min = popularityMaxInput.min = countToLog(dataBounds.minRatingCount);
+    popularityMinInput.max = popularityMaxInput.max = countToLog(dataBounds.maxRatingCount);
+
     var yearMinLabelInput = document.getElementById("yearMinLabel");
     var yearMaxLabelInput = document.getElementById("yearMaxLabel");
     var scoreMinLabelInput = document.getElementById("scoreMinLabel");
     var scoreMaxLabelInput = document.getElementById("scoreMaxLabel");
-    yearMinLabelInput.min = yearMaxLabelInput.min = dataBounds.minYear;
-    yearMinLabelInput.max = yearMaxLabelInput.max = dataBounds.maxYear;
-
-    // A single click on a number input doesn't reliably select its existing
-    // text the way it does in many apps (triple-click doesn't select-all on
-    // <input type="number"> in every browser) -- so typing a replacement
-    // value can land next to "1907" instead of over it. Force select-all on
-    // focus so clicking in always means "overwrite," not "edit in place."
-    [yearMinLabelInput, yearMaxLabelInput, scoreMinLabelInput, scoreMaxLabelInput].forEach(function (el) {
-      el.addEventListener("focus", function () { el.select(); });
+    var popularityMinLabelInput = document.getElementById("popularityMinLabel");
+    var popularityMaxLabelInput = document.getElementById("popularityMaxLabel");
+    // These are type="text" (not "number") specifically so select-all-on-
+    // click below actually works: Chrome doesn't support text selection at
+    // all on <input type="number"> (selectionStart/End read null, .select()
+    // silently no-ops), confirmed live -- that's why a single click didn't
+    // reliably let you overwrite "1907" with a typed value. Numeric
+    // validation/clamping is already handled in JS (see the "change"
+    // handlers below), so the native number-input behavior wasn't adding
+    // anything besides breaking selection.
+    [
+      yearMinLabelInput, yearMaxLabelInput, scoreMinLabelInput, scoreMaxLabelInput,
+      popularityMinLabelInput, popularityMaxLabelInput,
+    ].forEach(function (el) {
+      el.addEventListener("click", function () { el.select(); });
+      // The value commits on blur ("change" listeners below); Enter should
+      // commit it immediately too rather than only working via Tab/click-away.
+      el.addEventListener("keydown", function (e) {
+        if (e.key === "Enter") el.blur();
+      });
     });
 
     resetRangeInputs();
@@ -831,6 +869,16 @@
       updateRangeLabels();
       applyFilters();
     });
+    popularityMinInput.addEventListener("input", function () {
+      if (Number(popularityMinInput.value) > Number(popularityMaxInput.value)) popularityMaxInput.value = popularityMinInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
+    popularityMaxInput.addEventListener("input", function () {
+      if (Number(popularityMaxInput.value) < Number(popularityMinInput.value)) popularityMinInput.value = popularityMaxInput.value;
+      updateRangeLabels();
+      applyFilters();
+    });
 
     // Typing an exact value directly into the number box next to each
     // slider -- committed on blur/Enter ("change"), not every keystroke,
@@ -856,6 +904,30 @@
     scoreMaxLabelInput.addEventListener("change", function () {
       var v = clamp(Number(scoreMaxLabelInput.value) || 10, 0, 10);
       scoreMaxInput.value = Math.max(v, Number(scoreMinInput.value));
+      updateRangeLabels();
+      applyFilters();
+    });
+    // Displayed as "27,794" (toLocaleString in updateRangeLabels), so strip
+    // non-digit characters before parsing back a typed value.
+    popularityMinLabelInput.addEventListener("change", function () {
+      var count = clamp(
+        parseInt(popularityMinLabelInput.value.replace(/[^0-9]/g, ""), 10) || dataBounds.minRatingCount,
+        dataBounds.minRatingCount,
+        dataBounds.maxRatingCount
+      );
+      var v = countToLog(count);
+      popularityMinInput.value = Math.min(v, Number(popularityMaxInput.value));
+      updateRangeLabels();
+      applyFilters();
+    });
+    popularityMaxLabelInput.addEventListener("change", function () {
+      var count = clamp(
+        parseInt(popularityMaxLabelInput.value.replace(/[^0-9]/g, ""), 10) || dataBounds.maxRatingCount,
+        dataBounds.minRatingCount,
+        dataBounds.maxRatingCount
+      );
+      var v = countToLog(count);
+      popularityMaxInput.value = Math.max(v, Number(popularityMinInput.value));
       updateRangeLabels();
       applyFilters();
     });
@@ -978,6 +1050,7 @@
       dataBounds.maxY = Math.max.apply(null, ys);
       dataBounds.minYear = Math.min.apply(null, years);
       dataBounds.maxYear = Math.max.apply(null, years);
+      dataBounds.minRatingCount = Math.min.apply(null, ratingCounts);
       dataBounds.maxRatingCount = Math.max.apply(null, ratingCounts);
       sortedYears = years.slice().sort(function (a, b) { return a - b; });
       sortedRatingCounts = ratingCounts.slice().sort(function (a, b) { return a - b; });

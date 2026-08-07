@@ -728,9 +728,16 @@
     var scoreMin = Number(document.getElementById("scoreMin").value);
     var scoreMax = Number(document.getElementById("scoreMax").value);
 
+    var yearFilterActive = yearMin > dataBounds.minYear || yearMax < dataBounds.maxYear;
+    var scoreFilterActive = scoreMin > 0 || scoreMax < 10;
+
     filtered = allAnime.filter(function (a) {
-      if (a.year != null && (a.year < yearMin || a.year > yearMax)) return false;
-      if (a.score != null && (a.score < scoreMin || a.score > scoreMax)) return false;
+      // A null year/score (a handful of unreleased/TBD sequels) used to
+      // always pass, regardless of the slider position, since the check
+      // was skipped entirely for null values -- only skip it when the
+      // filter is at its full default range (i.e. not actually filtering).
+      if (a.year == null ? yearFilterActive : (a.year < yearMin || a.year > yearMax)) return false;
+      if (a.score == null ? scoreFilterActive : (a.score < scoreMin || a.score > scoreMax)) return false;
       if (activeTypes.size > 0 && !activeTypes.has(a.type)) return false;
       if (activeGenres.size > 0) {
         // Filters narrow the result set, they don't widen it -- selecting

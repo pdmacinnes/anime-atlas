@@ -24,25 +24,6 @@
     --badge-bg: rgba(10, 10, 10, 0.85);
     --badge-text: #e6e6e6;
   }
-  html[data-theme="light"] {
-    --bg: #dbdbdb;
-    --canvas-bg: #dbdbdb;
-    --text: #1a1a1a;
-    --text-dim: #555;
-    --text-dimmer: #777;
-    --sidebar-bg: rgba(219, 219, 219, 0.92);
-    --border: #c0c0c0;
-    --control-bg: #ececec;
-    --control-border: #b5b5b5;
-    --button-bg: #e5e5e5;
-    --button-border: #b0b0b0;
-    --accent: #4040c0;
-    --active-bg: #cfcfff;
-    --active-border: #7a7ae0;
-    --ring: #111111;
-    --badge-bg: rgba(219, 219, 219, 0.9);
-    --badge-text: #1a1a1a;
-  }
   html, body {
     margin: 0;
     padding: 0;
@@ -167,7 +148,7 @@
     border-color: var(--active-border);
     color: var(--text);
   }
-  #resetView, #resetFilters, #themeToggle {
+  #resetView, #resetFilters {
     margin-top: 14px;
     width: 100%;
     background: var(--button-bg);
@@ -307,6 +288,46 @@
     z-index: 9;
   }
 
+  #searchMeta {
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+    min-height: 1.2em;
+  }
+  #genreFilter { margin-bottom: 4px; }
+  #hoverLabel {
+    position: fixed;
+    pointer-events: none;
+    display: none;
+    z-index: 6;
+    max-width: 240px;
+    padding: 4px 8px;
+    background: var(--badge-bg);
+    color: var(--badge-text);
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    font-size: 12px;
+    line-height: 1.3;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  #countBadge.empty {
+    color: #e0a060;
+    border-color: #8a6030;
+  }
+  #detailPanel .alt-title {
+    color: var(--text-dimmer);
+    font-size: 11px;
+    margin-bottom: 6px;
+    padding-right: 20px;
+  }
+  #detailPanel .filter-note {
+    color: #e0a060;
+    margin-bottom: 8px;
+    font-size: 11px;
+  }
+
   @media (max-width: 700px) {
     #sidebarToggle {
       display: block;
@@ -341,6 +362,7 @@
 <div id="loading">Loading atlas...</div>
 <div id="error">Couldn't load atlas.json.</div>
 <div id="countBadge"></div>
+<div id="hoverLabel"></div>
 <button id="sidebarToggle" aria-label="Toggle filters">&#9776;</button>
 
 <div id="sidebar">
@@ -357,7 +379,8 @@
   <div id="legend"></div>
 
   <label for="searchBox">Search</label>
-  <input type="text" id="searchBox" placeholder="Find an anime...">
+  <input type="text" id="searchBox" placeholder="Title or Japanese name..." autocomplete="off" spellcheck="false">
+  <div id="searchMeta"></div>
 
   <label>Year</label>
   <div class="range-row">
@@ -380,19 +403,18 @@
     <input type="text" inputmode="numeric" id="popularityMinLabel">
     <input type="text" inputmode="numeric" id="popularityMaxLabel">
   </div>
-  <input type="range" id="popularityMin" step="0.001">
-  <input type="range" id="popularityMax" step="0.001">
+  <input type="range" id="popularityMin" step="any">
+  <input type="range" id="popularityMax" step="any">
 
   <label>Type</label>
   <div id="typeRow"></div>
 
-  <label>Genres (must have all selected)</label>
+  <label for="genreFilter">Genres (must have all selected)</label>
+  <input type="text" id="genreFilter" placeholder="Filter genre list..." autocomplete="off" spellcheck="false">
   <div id="genreList"></div>
 
   <button id="resetView">Reset view (pan/zoom)</button>
   <button id="resetFilters">Reset all filters</button>
-  <button id="themeToggle">Switch to light mode</button>
-
   <div id="attribution">
     Data: <a href="https://www.kaggle.com/datasets/ramazanturann/user-animelist-dataset" target="_blank" rel="noopener">User Animelist Dataset</a>
     by Ramazan Turan, CC BY-NC 4.0.
@@ -415,43 +437,31 @@
   var errorEl = document.getElementById("error");
   var countBadge = document.getElementById("countBadge");
   var detailPanel = document.getElementById("detailPanel");
+  var hoverLabel = document.getElementById("hoverLabel");
+  var searchMeta = document.getElementById("searchMeta");
 
   var allAnime = [];
   var filtered = [];
+  var filteredIdSet = new Set();
   var view = { x: 0, y: 0, scale: 1 };
   var dragging = false;
   var lastMouse = null;
   var hovered = null;
   var searchMatch = null;
+  var searchMatches = [];
+  var searchMatchIndex = 0;
+  var needsDraw = false;
+  var MIN_SCALE = 0.15;
+  var MAX_SCALE = 80;
+  var fitScale = 1;
 
   var dataBounds = { minX: 0, maxX: 1, minY: 0, maxY: 1, minYear: 1990, maxYear: 2027, minRatingCount: 1, maxRatingCount: 1 };
   var sortedYears = []; // for percentile-rank coloring -- see percentileRank()
   var sortedRatingCounts = [];
 
-  // --- Theme ------------------------------------------------------
-
   function cssVar(name) {
     return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
   }
-
-  function applyTheme(theme) {
-    document.documentElement.setAttribute("data-theme", theme);
-    localStorage.setItem("atlasTheme", theme);
-    document.getElementById("themeToggle").textContent =
-      theme === "light" ? "Switch to dark mode" : "Switch to light mode";
-    draw();
-  }
-
-  (function initTheme() {
-    var saved = localStorage.getItem("atlasTheme");
-    var preferred = saved || (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
-    applyTheme(preferred);
-  })();
-
-  document.getElementById("themeToggle").addEventListener("click", function () {
-    var current = document.documentElement.getAttribute("data-theme");
-    applyTheme(current === "light" ? "dark" : "light");
-  });
 
   // --- Mobile sidebar drawer -----------------------------------------
 
@@ -469,10 +479,34 @@
     setSidebarOpen(false);
   });
 
+  function clampScale(scale) {
+    return Math.min(MAX_SCALE, Math.max(MIN_SCALE, scale));
+  }
+
+  function requestDraw() {
+    if (needsDraw) return;
+    needsDraw = true;
+    requestAnimationFrame(function () {
+      needsDraw = false;
+      draw();
+    });
+  }
+
+  function updateZoomLimits() {
+    if (!allAnime.length) return;
+    var spanX = dataBounds.maxX - dataBounds.minX || 1;
+    var spanY = dataBounds.maxY - dataBounds.minY || 1;
+    fitScale = 0.9 * Math.min(canvas.width / spanX, canvas.height / spanY);
+    MIN_SCALE = fitScale * 0.05;
+    MAX_SCALE = fitScale * 40;
+    view.scale = clampScale(view.scale);
+  }
+
   function resizeCanvas() {
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
-    draw();
+    updateZoomLimits();
+    requestDraw();
   }
   window.addEventListener("resize", resizeCanvas);
 
@@ -490,12 +524,11 @@
   }
 
   function fitView() {
-    var spanX = dataBounds.maxX - dataBounds.minX;
-    var spanY = dataBounds.maxY - dataBounds.minY;
+    updateZoomLimits();
     view.x = (dataBounds.minX + dataBounds.maxX) / 2;
     view.y = (dataBounds.minY + dataBounds.maxY) / 2;
-    var margin = 0.9;
-    view.scale = margin * Math.min(canvas.width / spanX, canvas.height / spanY);
+    view.scale = fitScale;
+    requestDraw();
   }
 
   // --- Color scales -------------------------------------------------
@@ -577,14 +610,9 @@
     return sequentialColor(percentileRank(sortedRatingCounts, count));
   }
 
-  var TYPE_COLORS = {
-    light: { TV: "#2a78d6", SPECIAL: "#eb6834", MOVIE: "#1baf7a", other: "#6b6b6b" },
-    dark: { TV: "#3987e5", SPECIAL: "#d95926", MOVIE: "#199e70", other: "#9a9a9a" },
-  };
+  var TYPE_COLORS = { TV: "#3987e5", SPECIAL: "#d95926", MOVIE: "#199e70", other: "#9a9a9a" };
   function typeColor(type) {
-    var theme = document.documentElement.getAttribute("data-theme") || "dark";
-    var set = TYPE_COLORS[theme];
-    return set[type] || set.other;
+    return TYPE_COLORS[type] || TYPE_COLORS.other;
   }
 
   function colorFor(anime) {
@@ -670,18 +698,22 @@
     ctx.fillStyle = cssVar("--canvas-bg") || "#0a0a0f";
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    for (var i = 0; i < filtered.length; i++) {
-      var a = filtered[i];
+    function paint(a, alpha) {
       var pos = worldToScreen(a.x, a.y);
-      if (pos[0] < -20 || pos[0] > canvas.width + 20 || pos[1] < -20 || pos[1] > canvas.height + 20) continue;
-
+      if (pos[0] < -20 || pos[0] > canvas.width + 20 || pos[1] < -20 || pos[1] > canvas.height + 20) return;
       var radius = 2 + Math.min(4, Math.log((a.rating_count || 1) + 1) / 3);
       ctx.beginPath();
       ctx.fillStyle = colorFor(a);
-      ctx.globalAlpha = 0.85;
+      ctx.globalAlpha = alpha;
       ctx.arc(pos[0], pos[1], radius, 0, Math.PI * 2);
       ctx.fill();
     }
+
+    for (var i = 0; i < filtered.length; i++) paint(filtered[i], 0.85);
+    ctx.globalAlpha = 1;
+
+    if (searchMatch && !filteredIdSet.has(searchMatch.id)) paint(searchMatch, 0.55);
+    if (selected && selected !== searchMatch && !filteredIdSet.has(selected.id)) paint(selected, 0.55);
     ctx.globalAlpha = 1;
 
     if (searchMatch) {
@@ -702,7 +734,22 @@
       ctx.stroke();
     }
 
-    countBadge.textContent = filtered.length + " / " + allAnime.length + " anime shown";
+    if (hovered && hovered !== selected && hovered !== searchMatch) {
+      var hp = worldToScreen(hovered.x, hovered.y);
+      ctx.beginPath();
+      ctx.strokeStyle = cssVar("--ring") || "#ffffff";
+      ctx.lineWidth = 1;
+      ctx.arc(hp[0], hp[1], 6, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (filtered.length === 0 && allAnime.length > 0) {
+      countBadge.textContent = "No anime match filters";
+      countBadge.classList.add("empty");
+    } else {
+      countBadge.textContent = filtered.length + " / " + allAnime.length + " anime shown";
+      countBadge.classList.remove("empty");
+    }
   }
 
   // --- Interaction ------------------------------------------------------
@@ -742,19 +789,31 @@
         lastMouse = [e.clientX, e.clientY];
         view.x -= dx / view.scale;
         view.y -= dy / view.scale;
-        draw();
+        hoverLabel.style.display = "none";
+        requestDraw();
       }
+    } else if (e.target === canvas && !dragging) {
+      updateHover(e.clientX, e.clientY);
+    }
+  });
+  canvas.addEventListener("mouseleave", function () {
+    if (hovered) {
+      hovered = null;
+      hoverLabel.style.display = "none";
+      requestDraw();
     }
   });
   canvas.addEventListener("wheel", function (e) {
     e.preventDefault();
     var before = screenToWorld(e.clientX, e.clientY);
     var factor = e.deltaY < 0 ? 1.15 : 1 / 1.15;
-    view.scale *= factor;
+    var next = clampScale(view.scale * factor);
+    if (next === view.scale) return;
+    view.scale = next;
     var after = screenToWorld(e.clientX, e.clientY);
     view.x -= after[0] - before[0];
     view.y -= after[1] - before[1];
-    draw();
+    requestDraw();
   }, { passive: false });
 
   // Touch: one finger pans/taps (mirrors mouse drag/click), two fingers
@@ -794,23 +853,30 @@
       if (!touchState.moved) {
         var totalDx = t.clientX - touchState.startX;
         var totalDy = t.clientY - touchState.startY;
-        if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > DRAG_THRESHOLD_PX) touchState.moved = true;
+        if (Math.sqrt(totalDx * totalDx + totalDy * totalDy) > DRAG_THRESHOLD_PX) {
+          touchState.moved = true;
+        } else {
+          return;
+        }
       }
       touchState.lastX = t.clientX;
       touchState.lastY = t.clientY;
       view.x -= dx / view.scale;
       view.y -= dy / view.scale;
-      draw();
+      requestDraw();
     } else if (touchState.mode === "pinch" && e.touches.length === 2) {
       var dist = touchDist(e.touches[0], e.touches[1]);
       var mid = touchMid(e.touches[0], e.touches[1]);
       var before = screenToWorld(mid[0], mid[1]);
-      view.scale *= dist / touchState.startDist;
-      var after = screenToWorld(mid[0], mid[1]);
-      view.x -= after[0] - before[0];
-      view.y -= after[1] - before[1];
+      var next = clampScale(view.scale * (dist / touchState.startDist));
+      if (next !== view.scale) {
+        view.scale = next;
+        var after = screenToWorld(mid[0], mid[1]);
+        view.x -= after[0] - before[0];
+        view.y -= after[1] - before[1];
+        requestDraw();
+      }
       touchState.startDist = dist;
-      draw();
     } else {
       // Finger count changed (e.g. 2 -> 1 mid-pinch) -- drop the stale
       // anchor; the next touchmove with a matching count will re-seed it.
@@ -835,12 +901,12 @@
   canvas.addEventListener("touchend", onTouchEnd, { passive: false });
   canvas.addEventListener("touchcancel", onTouchEnd, { passive: false });
 
-  function selectNearest(sx, sy) {
+  function findNearest(sx, sy, list, hitPx) {
     var world = screenToWorld(sx, sy);
     var best = null;
-    var bestDist = 14 / view.scale; // pixel-ish hit radius in world units
-    for (var i = 0; i < filtered.length; i++) {
-      var a = filtered[i];
+    var bestDist = (hitPx || 14) / view.scale;
+    for (var i = 0; i < list.length; i++) {
+      var a = list[i];
       var dx = a.x - world[0];
       var dy = a.y - world[1];
       var dist = Math.sqrt(dx * dx + dy * dy);
@@ -849,29 +915,80 @@
         best = a;
       }
     }
-    selected = best;
+    return best;
+  }
+
+  function selectNearest(sx, sy) {
+    selected = findNearest(sx, sy, filtered, 14);
     showDetail(selected);
+    requestDraw();
+  }
+
+  function updateHover(sx, sy) {
+    var next = findNearest(sx, sy, filtered, 12);
+    if (next !== hovered) {
+      hovered = next;
+      requestDraw();
+    }
+    if (hovered) {
+      hoverLabel.textContent = hovered.title;
+      hoverLabel.style.display = "block";
+      var labelX = sx + 14;
+      var labelY = sy + 14;
+      var rectW = Math.min(240, hoverLabel.offsetWidth || 160);
+      if (labelX + rectW > window.innerWidth - 8) labelX = sx - rectW - 10;
+      if (labelY + 28 > window.innerHeight - 8) labelY = sy - 28;
+      hoverLabel.style.left = labelX + "px";
+      hoverLabel.style.top = labelY + "px";
+      canvas.style.cursor = "pointer";
+    } else {
+      hoverLabel.style.display = "none";
+      canvas.style.cursor = "grab";
+    }
+  }
+
+  function escapeAttr(s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;")
+      .replace(/</g, "&lt;");
   }
 
   function showDetail(anime) {
     if (!anime) {
       detailPanel.style.display = "none";
+      detailPanel.innerHTML = "";
+      requestDraw();
       return;
     }
     detailPanel.style.display = "block";
-    var img = anime.image_url ? '<img src="' + anime.image_url + '" alt="">' : "";
+    var hiddenByFilter = filteredIdSet.size > 0 && !filteredIdSet.has(anime.id);
+    var img = anime.image_url
+      ? '<img src="' + escapeAttr(anime.image_url) + '" alt="" loading="lazy" onerror="this.remove()">'
+      : "";
+    var alt = anime.alt_title
+      ? '<div class="alt-title">' + escapeHtml(anime.alt_title) + "</div>"
+      : "";
+    var episodes = anime.episodes != null ? anime.episodes + " ep" : null;
+    var ratings = anime.rating_count != null ? anime.rating_count.toLocaleString() + " ratings" : null;
+    var metaBits = [anime.type || null, anime.year || "?", "Score " + (anime.score != null ? anime.score.toFixed(2) : "?"), episodes, ratings]
+      .filter(Boolean)
+      .join(" · ");
     detailPanel.innerHTML =
       '<button id="closeDetail" aria-label="Close">&times;</button>' +
       img +
       "<h2>" + escapeHtml(anime.title) + "</h2>" +
-      '<div class="meta">' + (anime.type || "") + " &middot; " + (anime.year || "?") +
-      " &middot; Score " + (anime.score != null ? anime.score.toFixed(2) : "?") + "</div>" +
+      alt +
+      '<div class="meta">' + escapeHtml(metaBits) + "</div>" +
       '<div class="meta">' + escapeHtml((anime.genres || []).join(", ")) + "</div>" +
-      '<a href="' + anime.mal_url + '" target="_blank" rel="noopener">View on MyAnimeList</a>';
+      (hiddenByFilter ? '<div class="filter-note">Hidden by current filters</div>' : "") +
+      '<a href="' + escapeAttr(anime.mal_url) + '" target="_blank" rel="noopener">View on MyAnimeList</a>';
     document.getElementById("closeDetail").addEventListener("click", function () {
       selected = null;
       showDetail(null);
     });
+    requestDraw();
   }
 
   function escapeHtml(s) {
@@ -879,6 +996,15 @@
     div.textContent = s == null ? "" : s;
     return div.innerHTML;
   }
+
+  window.addEventListener("keydown", function (e) {
+    if (e.key !== "Escape") return;
+    if (sidebarEl.classList.contains("open")) setSidebarOpen(false);
+    if (selected) {
+      selected = null;
+      showDetail(null);
+    }
+  });
 
   // --- Filters ------------------------------------------------------
 
@@ -898,8 +1024,16 @@
     var yearMax = Number(document.getElementById("yearMax").value);
     var scoreMin = Number(document.getElementById("scoreMin").value);
     var scoreMax = Number(document.getElementById("scoreMax").value);
-    var popularityMin = logToCount(Number(document.getElementById("popularityMin").value));
-    var popularityMax = logToCount(Number(document.getElementById("popularityMax").value));
+    var popularityMinLog = Number(document.getElementById("popularityMin").value);
+    var popularityMaxLog = Number(document.getElementById("popularityMax").value);
+    var popularityMin = logToCount(popularityMinLog);
+    var popularityMax = logToCount(popularityMaxLog);
+    if (popularityMinLog <= Number(document.getElementById("popularityMin").min) + 1e-9) {
+      popularityMin = dataBounds.minRatingCount;
+    }
+    if (popularityMaxLog >= Number(document.getElementById("popularityMax").max) - 1e-9) {
+      popularityMax = dataBounds.maxRatingCount;
+    }
 
     var yearFilterActive = yearMin > dataBounds.minYear || yearMax < dataBounds.maxYear;
     var scoreFilterActive = scoreMin > 0 || scoreMax < 10;
@@ -923,7 +1057,15 @@
       }
       return true;
     });
-    draw();
+    filteredIdSet = new Set(filtered.map(function (a) { return a.id; }));
+    if (selected) {
+      var note = detailPanel.querySelector(".filter-note");
+      var isHidden = !filteredIdSet.has(selected.id);
+      if (!!note !== isHidden) showDetail(selected);
+      else requestDraw();
+    } else {
+      requestDraw();
+    }
   }
 
   var yearMinInput, yearMaxInput, scoreMinInput, scoreMaxInput, popularityMinInput, popularityMaxInput;
@@ -935,8 +1077,16 @@
     document.getElementById("yearMaxLabel").value = yearMaxInput.value;
     document.getElementById("scoreMinLabel").value = Number(scoreMinInput.value).toFixed(1);
     document.getElementById("scoreMaxLabel").value = Number(scoreMaxInput.value).toFixed(1);
-    document.getElementById("popularityMinLabel").value = logToCount(Number(popularityMinInput.value)).toLocaleString();
-    document.getElementById("popularityMaxLabel").value = logToCount(Number(popularityMaxInput.value)).toLocaleString();
+    var popMinLog = Number(popularityMinInput.value);
+    var popMaxLog = Number(popularityMaxInput.value);
+    var popMin = popMinLog <= Number(popularityMinInput.min) + 1e-9
+      ? dataBounds.minRatingCount
+      : logToCount(popMinLog);
+    var popMax = popMaxLog >= Number(popularityMaxInput.max) - 1e-9
+      ? dataBounds.maxRatingCount
+      : logToCount(popMaxLog);
+    document.getElementById("popularityMinLabel").value = popMin.toLocaleString();
+    document.getElementById("popularityMaxLabel").value = popMax.toLocaleString();
   }
 
   function resetRangeInputs() {
@@ -1108,6 +1258,8 @@
     });
     var genres = Object.keys(genreCounts).sort(function (a, b) { return genreCounts[b] - genreCounts[a]; });
     var list = document.getElementById("genreList");
+    var genreFilterInput = document.getElementById("genreFilter");
+    var genreRows = [];
     genres.forEach(function (genre) {
       var label = document.createElement("label");
       var checkbox = document.createElement("input");
@@ -1120,7 +1272,44 @@
       label.appendChild(checkbox);
       label.appendChild(document.createTextNode(genre + " (" + genreCounts[genre] + ")"));
       list.appendChild(label);
+      genreRows.push({ genre: genre, el: label });
     });
+    genreFilterInput.addEventListener("input", function () {
+      var q = genreFilterInput.value.trim().toLowerCase();
+      genreRows.forEach(function (row) {
+        row.el.style.display = !q || row.genre.toLowerCase().indexOf(q) !== -1 ? "" : "none";
+      });
+    });
+  }
+
+  function titleMatches(anime, q) {
+    if ((anime.title || "").toLowerCase().indexOf(q) !== -1) return true;
+    if ((anime.alt_title || "").toLowerCase().indexOf(q) !== -1) return true;
+    return false;
+  }
+
+  function focusSearchMatch(match) {
+    searchMatch = match;
+    selected = match;
+    view.x = match.x;
+    view.y = match.y;
+    view.scale = clampScale(Math.max(view.scale, fitScale * 4));
+    showDetail(match);
+    if (window.matchMedia && window.matchMedia("(max-width: 700px)").matches) {
+      setSidebarOpen(false);
+    }
+  }
+
+  function updateSearchMeta() {
+    if (!searchMatches.length) {
+      var q = document.getElementById("searchBox").value.trim();
+      searchMeta.textContent = q ? "No matches" : "";
+      return;
+    }
+    searchMeta.textContent =
+      (searchMatchIndex + 1) + " / " + searchMatches.length +
+      " match" + (searchMatches.length === 1 ? "" : "es") +
+      (searchMatches.length > 1 ? " · Enter for next" : "");
   }
 
   function setupSearch() {
@@ -1129,23 +1318,40 @@
       var q = box.value.trim().toLowerCase();
       if (!q) {
         searchMatch = null;
-        draw();
+        searchMatches = [];
+        searchMatchIndex = 0;
+        updateSearchMeta();
+        requestDraw();
         return;
       }
-      var match = allAnime.find(function (a) { return a.title.toLowerCase().indexOf(q) !== -1; });
-      if (match) {
-        searchMatch = match;
-        view.x = match.x;
-        view.y = match.y;
-        view.scale = Math.max(view.scale, 8);
-        draw();
+      searchMatches = allAnime.filter(function (a) { return titleMatches(a, q); });
+      searchMatches.sort(function (a, b) {
+        var aVis = filteredIdSet.has(a.id) ? 0 : 1;
+        var bVis = filteredIdSet.has(b.id) ? 0 : 1;
+        if (aVis !== bVis) return aVis - bVis;
+        return (a.title || "").localeCompare(b.title || "");
+      });
+      searchMatchIndex = 0;
+      if (searchMatches.length) focusSearchMatch(searchMatches[0]);
+      else {
+        searchMatch = null;
+        requestDraw();
+      }
+      updateSearchMeta();
+    });
+    box.addEventListener("keydown", function (e) {
+      if (e.key === "Enter" && searchMatches.length > 1) {
+        e.preventDefault();
+        searchMatchIndex = (searchMatchIndex + 1) % searchMatches.length;
+        focusSearchMatch(searchMatches[searchMatchIndex]);
+        updateSearchMeta();
       }
     });
   }
 
   document.getElementById("colorBy").addEventListener("change", function () {
     renderLegend();
-    draw();
+    requestDraw();
   });
   document.getElementById("resetView").addEventListener("click", fitView);
 
@@ -1160,16 +1366,20 @@
       cb.checked = false;
     });
     document.getElementById("searchBox").value = "";
+    document.getElementById("genreFilter").value = "";
+    document.querySelectorAll("#genreList label").forEach(function (label) {
+      label.style.display = "";
+    });
     searchMatch = null;
+    searchMatches = [];
+    searchMatchIndex = 0;
+    updateSearchMeta();
     selected = null;
+    hovered = null;
+    hoverLabel.style.display = "none";
     showDetail(null);
     applyFilters();
   });
-
-  function animate() {
-    draw();
-    requestAnimationFrame(animate);
-  }
 
   // --- Load data ------------------------------------------------------
 
@@ -1183,6 +1393,7 @@
     .then(function (data) {
       allAnime = data;
       filtered = data;
+      filteredIdSet = new Set(data.map(function (a) { return a.id; }));
       loadingEl.style.display = "none";
 
       var xs = data.map(function (a) { return a.x; });
@@ -1207,7 +1418,7 @@
       setupGenreList();
       setupSearch();
       renderLegend();
-      animate();
+      requestDraw();
     })
     .catch(function (err) {
       loadingEl.style.display = "none";
